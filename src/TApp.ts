@@ -8,7 +8,7 @@ export type TStats = {
 
 export type TLastStats = {
   frame: number;
-  total_size: { value: number; last_time_µs: number };
+  total_size: { value: number; last_time_micros: number };
   out_time_ms: number;
   dup_frames: number;
   drop_frames: number;

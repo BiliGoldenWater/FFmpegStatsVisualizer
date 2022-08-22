@@ -1,14 +1,10 @@
 <script lang="ts">
-  import { listen } from "@tauri-apps/api/event";
+  import {listen} from "@tauri-apps/api/event";
 
-  import { onMount, onDestroy } from "svelte";
-  import type { TLastStats, TParsedStats, TStats } from "./TApp";
+  import {onDestroy, onMount} from "svelte";
+  import type {TLastStats, TParsedStats, TStats} from "./TApp";
   import * as echarts from "echarts";
-  import {
-    GridComponent,
-    LegendComponent,
-    TooltipComponent,
-  } from "echarts/components";
+  import {GridComponent, LegendComponent, TooltipComponent,} from "echarts/components";
   // @ts-ignore
   echarts.use([GridComponent, LegendComponent, TooltipComponent]);
 
@@ -92,7 +88,7 @@
     function resetStats() {
       last_stats = {
         frame: -1,
-        total_size: { value: -1, last_time_µs: -1 },
+        total_size: { value: -1, last_time_micros: -1 },
         out_time_ms: -1,
         dup_frames: -1,
         drop_frames: -1,
@@ -117,8 +113,7 @@
 
       for (const stats_item of data.data.split("\n")) {
         let item = stats_item.split("=");
-        let value = parseFloat(item[1]);
-        stats[item[0]] = value;
+        stats[item[0]] = parseFloat(item[1]);
       }
       // endregion
 
@@ -132,7 +127,7 @@
               ...stats,
               total_size: {
                 value: stats.total_size,
-                last_time_µs: stats.out_time_ms,
+                last_time_micros: stats.out_time_ms,
               },
             };
             last_ts = Date.now();
@@ -148,16 +143,16 @@
       let duration = durationMs / 1000;
       let total_size_updated =
         last_stats.total_size.value !== stats.total_size &&
-        last_stats.total_size.last_time_µs !== stats.out_time_ms;
+        last_stats.total_size.last_time_micros !== stats.out_time_ms;
 
       // fps
       current_stats.fps = (stats.frame - last_stats.frame) / duration;
       // bitrate
       if (total_size_updated) {
         let duration =
-          (stats.out_time_ms - last_stats.total_size.last_time_µs) / 1e6;
-        let sizeIncearse = stats.total_size - last_stats.total_size.value;
-        let bytesPerSecond = sizeIncearse / duration;
+          (stats.out_time_ms - last_stats.total_size.last_time_micros) / 1e6;
+        let sizeIncrease = stats.total_size - last_stats.total_size.value;
+        let bytesPerSecond = sizeIncrease / duration;
         let bitsPerSecond = bytesPerSecond * 8;
         current_stats.bitrate = bitsPerSecond / 1000;
       }
@@ -182,7 +177,7 @@
       if (total_size_updated) {
         last_stats.total_size = {
           value: stats.total_size,
-          last_time_µs: stats.out_time_ms,
+          last_time_micros: stats.out_time_ms,
         };
       }
 
@@ -223,6 +218,7 @@
   }}
 />
 <div class="app">
+  <!--suppress CheckEmptyScriptTag -->
   <div class="chart" bind:this={element} />
   <div class="stats">{statsStr}</div>
 </div>
