@@ -1,8 +1,13 @@
 <script lang="ts">
-  import { listen } from "@tauri-apps/api/event";
+  // 0 to disable (second(s))
+  let removeBefore = 120;
+  // millis
+  let updateInterval = 500;
 
-  import { onDestroy, onMount } from "svelte";
-  import type { TLastStats, TParsedStats, TStats } from "./TApp";
+  import {listen} from "@tauri-apps/api/event";
+
+  import {onDestroy, onMount} from "svelte";
+  import type {TLastStats, TParsedStats, TStats} from "./TApp";
   import * as echarts from "echarts";
   import {
     GridComponent,
@@ -12,8 +17,31 @@
   // @ts-ignore
   echarts.use([GridComponent, LegendComponent, TooltipComponent]);
 
-  let element: HTMLDivElement;
-  let instance: echarts.ECharts;
+  // noinspection TypeScriptValidateTypes
+  let charts: {
+    key: "";
+    stats_item: (keyof TParsedStats)[];
+    height: string,
+    element?: HTMLDivElement | undefined;
+    instance?: echarts.ECharts | undefined;
+    option?: unknown;
+  }[] = [
+    {
+      key: Math.random().toString(),
+      stats_item: ["fps"],
+      height: "30vh",
+    },
+    {
+      key: Math.random().toString(),
+      stats_item: ["bitrate", "speed"],
+      height: "50vh",
+    },
+    {
+      key: Math.random().toString(),
+      stats_item: ["dup_frames", "drop_frames"],
+      height: "20vh",
+    },
+  ];
 
   let unlisten_stats: () => void;
   let loopId: number;
@@ -31,7 +59,7 @@
     `dup_frames: ${current_stats.dup_frames} ` +
     `drop_frames: ${current_stats.drop_frames}`;
 
-  let option = {
+  let optionTemplate = {
     tooltip: {
       trigger: "axis",
     },
@@ -57,26 +85,32 @@
 
   // region loop
   function startLoop() {
-    loopId = window.setTimeout(loop.bind(this), 1000);
+    loopId = window.setTimeout(loop.bind(this), updateInterval);
   }
 
   function loop() {
     chart_data.push({
       key: index++,
       ts: Date.now(),
-      stats: { ...current_stats },
+      stats: {...current_stats},
     });
-    chart_data = chart_data.filter((v) => v.ts >= Date.now() - 30 * 1000);
+    if (removeBefore > 0)
+      chart_data = chart_data.filter(
+        (v) => v.ts >= Date.now() - removeBefore * 1000
+      );
 
-    option.xAxis.data = chart_data.map((v) => v.key.toString());
-    option.series = Object.keys(current_stats).map((it) => ({
-      name: it,
-      type: "line",
-      data: chart_data.map((v) => v.stats[it]),
-    }));
+    for (let chart of charts) {
+      if (!chart.option) chart.option = {...optionTemplate}
+      chart.option.xAxis.data = chart_data.map((it) => it.key.toString());
+      chart.option.series = Object.keys(current_stats).filter(it => chart.stats_item.includes(it as keyof TParsedStats)).map((it) => ({
+        name: it,
+        type: "line",
+        data: chart_data.map((v) => v.stats[it]),
+      }));
 
-    // noinspection TypeScriptValidateTypes
-    instance.setOption(option);
+      // noinspection TypeScriptValidateTypes
+      chart.instance.setOption(chart.option);
+    }
 
     if (!end) startLoop();
   }
@@ -98,7 +132,7 @@
     function resetStats() {
       last_stats = {
         frame: -1,
-        total_size: { value: -1, last_time_micros: -1 },
+        total_size: {value: -1, last_time_micros: -1},
         out_time_ms: -1,
         dup_frames: -1,
         drop_frames: -1,
@@ -165,7 +199,7 @@
         let sizeIncrease = stats.total_size - last_stats.total_size.value;
         let bytesPerSecond = sizeIncrease / duration;
         let bitsPerSecond = bytesPerSecond * 8;
-        current_stats.bitrate = bitsPerSecond / 1000 / 1000;
+        current_stats.bitrate = bitsPerSecond / 1e6;
       }
       // speed
       current_stats.speed =
@@ -179,7 +213,7 @@
       statsStr = statsToString();
 
       // region finally
-      current_stats = { ...current_stats };
+      current_stats = {...current_stats};
 
       last_stats = {
         ...stats,
@@ -211,26 +245,32 @@
       if (data.end) console.log("ended");
     });
 
-    instance = echarts.init(element);
+    for (let chart of charts) {
+      chart.instance = echarts.init(chart.element)
+    }
   });
   // endregion
 
   onDestroy(() => {
     unlisten_stats();
     stopLoop();
-    instance.dispose();
+    charts.forEach(v => v.instance?.dispose());
   });
 </script>
 
 <svelte:window
   on:resize={() => {
-    instance?.resize();
+    for (let chart of charts) {
+      chart?.instance.resize();
+    }
   }}
 />
 <div class="app">
-  <!--suppress CheckEmptyScriptTag -->
-  <div class="chart" bind:this={element} />
   <div class="stats">{statsStr}</div>
+  {#each charts as chart}
+    <!--suppress CheckEmptyScriptTag -->
+    <div class="chart" style={`height: ${chart.height}`} bind:this={chart.element}/>
+  {/each}
 </div>
 
 <style>
@@ -243,7 +283,6 @@
   }
 
   .chart {
-    flex-grow: 1;
     width: 100vw;
   }
 </style>
