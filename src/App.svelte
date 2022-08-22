@@ -1,10 +1,14 @@
 <script lang="ts">
-  import {listen} from "@tauri-apps/api/event";
+  import { listen } from "@tauri-apps/api/event";
 
-  import {onDestroy, onMount} from "svelte";
-  import type {TLastStats, TParsedStats, TStats} from "./TApp";
+  import { onDestroy, onMount } from "svelte";
+  import type { TLastStats, TParsedStats, TStats } from "./TApp";
   import * as echarts from "echarts";
-  import {GridComponent, LegendComponent, TooltipComponent,} from "echarts/components";
+  import {
+    GridComponent,
+    LegendComponent,
+    TooltipComponent,
+  } from "echarts/components";
   // @ts-ignore
   echarts.use([GridComponent, LegendComponent, TooltipComponent]);
 
@@ -17,18 +21,20 @@
   let index = 0;
 
   let current_stats: TParsedStats = {} as TParsedStats;
-  let chart_data: { key: number; stats: TParsedStats }[] = [];
+  let chart_data: { key: number; ts: number; stats: TParsedStats }[] = [];
   let statsStr = "-";
 
   let statsToString = () =>
     `fps: ${current_stats.fps.toFixed(2)} ` +
-    `bitrate: ${current_stats.bitrate.toFixed(2)}kbps ` +
+    `bitrate: ${current_stats.bitrate.toFixed(3)}mbps ` +
     `speed: ${current_stats.speed.toFixed(2)}x ` +
     `dup_frames: ${current_stats.dup_frames} ` +
     `drop_frames: ${current_stats.drop_frames}`;
 
   let option = {
-    tooltip: {},
+    tooltip: {
+      trigger: "axis",
+    },
     legend: {},
     xAxis: {
       data: [],
@@ -51,14 +57,16 @@
 
   // region loop
   function startLoop() {
-    loopId = window.setTimeout(loop.bind(this), 500);
+    loopId = window.setTimeout(loop.bind(this), 1000);
   }
 
   function loop() {
     chart_data.push({
       key: index++,
+      ts: Date.now(),
       stats: { ...current_stats },
     });
+    chart_data = chart_data.filter((v) => v.ts >= Date.now() - 30 * 1000);
 
     option.xAxis.data = chart_data.map((v) => v.key.toString());
     option.series = Object.keys(current_stats).map((it) => ({
@@ -67,6 +75,7 @@
       data: chart_data.map((v) => v.stats[it]),
     }));
 
+    // noinspection TypeScriptValidateTypes
     instance.setOption(option);
 
     if (!end) startLoop();
@@ -75,6 +84,7 @@
   function stopLoop() {
     window.clearTimeout(loopId);
   }
+
   // endregion
 
   // region init
@@ -95,6 +105,7 @@
       };
       last_ts = -1;
     }
+
     resetStats();
     // endregion
 
@@ -154,7 +165,7 @@
         let sizeIncrease = stats.total_size - last_stats.total_size.value;
         let bytesPerSecond = sizeIncrease / duration;
         let bitsPerSecond = bytesPerSecond * 8;
-        current_stats.bitrate = bitsPerSecond / 1000;
+        current_stats.bitrate = bitsPerSecond / 1000 / 1000;
       }
       // speed
       current_stats.speed =
@@ -201,7 +212,6 @@
     });
 
     instance = echarts.init(element);
-    instance.setOption(option);
   });
   // endregion
 
